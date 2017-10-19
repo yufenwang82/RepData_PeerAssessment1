@@ -1,0 +1,133 @@
+---
+title: "Reproducible research project 1"
+author: "Yu-Fen (Andrea) Wang"
+date: "October 18, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load the data 
+```{r}
+url="https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+download.file(url,destfile = "./project1.zip")
+## upzip the file
+unzip(zipfile = "./project1.zip",exdir=getwd())
+## open the data file
+data<-read.csv(file = "activity.csv",header=T,sep=",")
+```
+
+## exploratory data analysis
+```{r}
+## let's take a look at what data looks like
+str(data)
+
+```
+Now we know the variables are:
+- steps: integer,missing value presented as NA
+- date: factor, presented as YYYY-MM-DD
+- interval: integer, increase by 5, it shows which interval the steps are measured 
+
+## preprocess data
+```{r}
+## change the date column into date formart
+library(lubridate)
+data$date<-ymd(data$date)
+head(data,5)
+
+## remove those rows without step value
+data2<-data[!is.na(data$steps),]
+
+summary(data2)
+```
+
+## calculate numbers of steps taken per day
+```{r}
+steps_day<-aggregate(data2$steps~data2$date,FUN=sum)
+names(steps_day)<-c("Date","Steps")
+head(steps_day,5)
+```
+
+## Make Histogram for number of steps taken per day
+
+```{r}
+
+hist(steps_day$Steps,xlab="Steps",main="Steps Taken per Day",labels = T)
+
+```
+## Mean and median number of steps taken each day
+```{r}
+str(steps_day)
+mean(steps_day$Steps)
+median(steps_day$Steps)
+```
+The mean steps taken each day is 10766 steps
+The median steps taken each day is 10765 steps
+
+## Time series plot of the average number of steps taken
+```{r}
+## calculate the avg steps taken per interval
+steps_interval<-aggregate(data2$steps~data2$interval,FUN=sum)
+names(steps_interval)<-c("interval","steps")
+library(ggplot2)
+p<-ggplot(steps_interval,aes(x=interval,y=steps))
+p+geom_line(color="blue",size=1)+xlab("Interval")+ylab("Steps")+ggtitle("Average Steps Taken Per Interval")
+```
+
+## The 5-minute interval that, on average, contains the maximum number of steps
+```{r}
+max(steps_interval$steps)
+steps_interval[steps_interval$steps==max(steps_interval$steps),]
+```
+Thte interval with max steps is 835
+
+##Code to describe and show a strategy for imputing missing data
+```{r}
+sum(is.na(data$steps))
+
+```
+There are 2304 rows without steps value
+
+## Histogram of the total number of steps taken each day after missing values are imputed
+```{r}
+na<-data[is.na(data$steps),]
+summary(na)
+## in order to show missing value in new graph, I assign them with a desinated value as mean steps 100
+na$steps=100
+steps_day_na<-aggregate(na$steps~na$date,FUN=sum)
+names(steps_day_na)=c("Date","Steps")
+head(steps_day_na,5)
+## then I merge the modified missing value set to steps_day
+merge_na<-rbind(steps_day,steps_day_na)
+## plot two histogram with different color to illustrate the difference
+hist(merge_na$Steps,xlab="Steps",main="Steps Taken per Day excluding NA Values",col="light blue",labels = T)
+hist(steps_day$Steps,xlab="Steps",main="Steps Taken per Day",col="light green",add=T)
+
+legend("topright",c("No-NA","With NA data"),fill = c("light green","light blue"))
+```
+## Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+```{r}
+library(dplyr)
+## create a new colum to convert the date into weekday
+data2<-mutate(data2,day=wday(data2$date,label = T))
+head(data2,5)
+## create a column to convert the day into weekday or weekend
+
+weekend<-data2[data2$day=="Sat"|data2$day=="Sun",]
+weekend<-mutate(weekend,wday="weekend")
+weekday<-anti_join(data2,weekend,by='day')
+weekday<-mutate(weekday,wday="weekday")
+data3<-rbind(weekend,weekday)
+## summarize steps by interval and wday
+steps_interval_2<-aggregate(data3$steps~data3$interval+data3$wday,FUN=mean)
+names(steps_interval_2)<-c("interval","wday","steps")
+
+## make 2 plot to show the average steps by interval in weekday vs weekend
+library(ggplot2)
+qplot(interval,steps,data=steps_interval_2,facets = wday~.,geom = "line")+ggtitle("Average steps per interval: weekday vs weekends")
+
+```
+
+
